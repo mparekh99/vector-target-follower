@@ -1,6 +1,9 @@
 # Vector Target Follower 
 Enable your Anki Vector to autonomously follow another Vector robot detected in its field of view using real-time object detection and PID control. This project combines YOLO-based detection, camera geometry, and motion control to achieve smooth tracking behavior.
 
+## Output
+
+
 ## Target Distance 
 Using the Pinhole Camera Model:
 
@@ -9,13 +12,13 @@ $$
 $$
 
  
-Z: Distance to the object (mm)
+- Z: Distance to the object (mm)
 
-H: Real-world height of Vector (66.6 mm)
+- H: Real-world height of Vector (66.6 mm)
 
-h: Height of bounding box (pixels)
+- h: Height of bounding box (pixels)
 
-f: Focal length (pixels), calculated from known camera FOV
+- f: Focal length (pixels), calculated from known camera FOV
 
 ## Target Angle Calculation
 
@@ -24,13 +27,13 @@ $$
 $$
 
 
-cx: Bounding box center x-coordinate
+- cx: Bounding box center x-coordinate
 
-FOV_HORIZONTAL: Horizontal field of view of Vector’s camera
+- FOV_HORIZONTAL: Horizontal field of view of Vector’s camera
 
-Converts pixel offset into angular error in degrees
+- Converts pixel offset into angular error in degrees
 
-## PID 
+## PID Controllers
 Two separate PID controllers are used:
 
 ### 1. Distance PID
@@ -44,19 +47,29 @@ Controls left/right turning
 Units: degrees → motor speed
 
 PID Formula (per controller):
+
 $$
 \text{Output} = K_P \cdot e(t) + K_I \cdot \int e(t) \, dt + K_D \cdot \frac{de(t)}{dt}
 $$
+
 **Where:**
 
-- \( e \) is the current error  
-- \( \int e \, dt \) is the integral of the error  
-- \( \frac{de}{dt} \) is the derivative of the error
-
+- e is the current error  
+- ∫e dt is the integral of the error  
+- de/dt is the derivative of the error
 
 ## Output Scalling & Clamping 
 One of the main challenges was balancing output scales of the two controllers:
+- Distance output was in millimeters per second
+- Angle output was in degrees or radians per second
 
-Distance output was in millimeters per second
+✅ Solution:
+- Normalize and scale outputs to a common range (−200,200) before applying to motor speeds.
+- Clamp outputs using:
 
-Angle output was in degrees or radians per second
+```
+move_dist = max(min(move_dist, 150), -150)
+move_deg = max(min(move_deg, 5), -5)
+```
+
+- Combine them for differential drive. 
