@@ -8,6 +8,9 @@ from anki_vector.util import degrees
 import matplotlib.pyplot as plt
 import math
 import csv
+
+
+
 # ### CONSTANTS
 
 CAMERA_WIDTH = 640 # pixels
@@ -21,19 +24,25 @@ REAL_VECTOR_HIEGHT = 66.6  # MM
 focal_length_px = (CAMERA_HEIGHT / 2) / math.tan(math.radians(FOV_VERTICAL / 2))
 
 
+### Tuned Through Trial & Error 
 
+# Angular PID Values 
 
-# PID controller constants for tuning ANGLES
-K_P = 0.2
-K_I = 0
-K_D = 0.1
-BIAS = 0
+K_P = 0.12
+K_I = 0.002
+K_D = 0.025
+BIAS = 0.0
 
-#
+# Distance PID Values
+
 K_P_dist = 0.4
-K_I_dist = 0
-K_D_dist = 0
-BIAS_dist = 0
+K_I_dist = 0.0
+K_D_dist = 0.1
+BIAS_dist = 0.0
+
+
+## Want to be 90 mm away from Detected Robot.
+
 TARGET_DIST = 90  ##mm
 
 #### MODEL
@@ -52,13 +61,12 @@ def estimate_distance(box_height_px):
     distance_mm = (focal_length_px * REAL_VECTOR_HIEGHT) / box_height_px
     return distance_mm
 
-
 def save_logs_to_csv(filename, time_log, angle_error_log, move_deg_log, dist_error_log, move_dist_log, left_speed_log, right_speed_log):
     with open(filename, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header
         writer.writerow(['time', 'angle_error', 'move_deg', 'dist_error', 'move_dist', 'left_speed', 'right_speed'])
-        # Write rows
+        # Write data rows
         for i in range(len(time_log)):
             writer.writerow([
                 time_log[i],
@@ -80,16 +88,18 @@ def main():
     last_time = time.time()
 
 
-        # Lists for logging data
-    time_log = []
-    angle_error_log = []
-    move_deg_log = []
-    dist_error_log = []
-    move_dist_log = []
-    left_speed_log = []
-    right_speed_log = []
+    ## LOGGING
 
-    with anki_vector.Robot("00603f86") as robot:
+    # time_log = []
+    # angle_error_log = []
+    # move_deg_log = []
+    # dist_error_log = []
+    # move_dist_log = []
+    # left_speed_log = []
+    # right_speed_log = []
+
+
+    with anki_vector.Robot("00806b78") as robot:
 
         robot.behavior.set_head_angle(degrees(7.0))
         robot.behavior.set_lift_height(0.0)
@@ -128,12 +138,9 @@ def main():
                     deg_per_pixel_h = FOV_HORIZONTAL / CAMERA_WIDTH
                     angle_to_target = delta_x * deg_per_pixel_h
 
-    
-                    print(f'Angle to target {angle_to_target}')
-
                     ### DISTANCE ESTIMATION:
                     distance_mm = estimate_distance(h) - 25.4
-                    print(f"Estimated distance to target: {distance_mm:.1f} mm")
+                    
 
                     ## PID CONTROLLER DISTANCE MATH
                     error_dist = distance_mm - TARGET_DIST ## Target distance I need to be
@@ -141,7 +148,16 @@ def main():
                     derivative_dist = (error_dist - error_dist_prev) / dt
                     move_dist = (K_P_dist * error_dist) + (K_I_dist * integral_dist) + (K_D_dist * derivative_dist) + BIAS_dist
 
-                    move_dist = max(min(move_dist, 80), -80)
+                    print(f'REAL DIST -> {distance_mm}')
+                    print(f'PID MOVE DIST -> {move_dist}')
+
+
+                    
+
+                    # # move_dist = max(min(move_dist, 120), -120)
+                    move_dist = max(min(move_dist, 150), -150)
+
+                    # print(f'MOVE_DIST VALUE: {move_dist}')
 
                     error_dist_prev = error_dist
 
@@ -153,29 +169,36 @@ def main():
                     integral = integral + (error * dt)
                     derivative = (error - error_prev) / dt
                     move_deg = (K_P * error) + (K_I * integral) + (K_D * derivative) + BIAS
+                    error_prev = error
+
+                    print(f'REAL ANGLE -> {angle_to_target}')
+                    print(f'PID MOVE DEGREE -> {move_deg}')
 
                     move_deg = max(min(move_deg, 5), -5)
 
-                    turn_speed = max(min(move_deg * 7, 100), -100)
+                    
+
+                    turn_speed = max(min(move_deg * 10, 100), -100)
+
+                    
 
                     
                     left_speed = move_dist + turn_speed
                     right_speed = move_dist - turn_speed
 
-                    # Clamp speeds to motor limits
-                    left_speed = max(min(left_speed, 100), -100)
-                    right_speed = max(min(right_speed, 100), -100)
+                    # # Clamp speeds to motor limits
+                    left_speed = max(min(left_speed, 200), -200)
+                    right_speed = max(min(right_speed, 200), -200)
 
                     robot.motors.set_wheel_motors(int(left_speed), int(right_speed))
 
-                    error_prev = error
-
-                    print(f"Angle error: {error:.2f}, move_deg: {move_deg:.2f}")
-                    print(f"Dist error: {error_dist:.2f}, move_dist: {move_dist:.2f}")
-                    print(f"Wheel speeds - Left: {left_speed:.2f}, Right: {right_speed:.2f}")
-
-
-
+                    # time_log.append(now)
+                    # angle_error_log.append(error)
+                    # move_deg_log.append(move_deg)
+                    # dist_error_log.append(error_dist)
+                    # move_dist_log.append(move_dist)
+                    # left_speed_log.append(left_speed)
+                    # right_speed_log.append(right_speed)
 
                     ## PLOTTING 
 
@@ -189,22 +212,7 @@ def main():
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
 
-                                            # Log data
-                    time_log.append(now)
-                    angle_error_log.append(error)
-                    move_deg_log.append(move_deg)
-                    dist_error_log.append(error_dist)
-                    move_dist_log.append(move_dist)
-                    left_speed_log.append(left_speed)
-                    right_speed_log.append(right_speed)
-
-
-
-                # else:
-                #     # No detection: stop or slowly rotate
-                #     robot.motors.set_wheel_motors(0, 0)
-                #     error = 0
-                #     derivative = 0
+                                        
 
             cv2.imshow("Vector FOV", frame)
 
@@ -217,9 +225,17 @@ def main():
         robot.motors.set_wheel_motors(0, 0) 
         cv2.destroyAllWindows()
 
-        # At the end of main(), after loop:
-        save_logs_to_csv('vector_pid_log.csv', time_log, angle_error_log, move_deg_log, dist_error_log, move_dist_log, left_speed_log, right_speed_log)
-        print("Logs saved to vector_pid_log.csv")
+        # save_logs_to_csv(
+        #     'vector_pid_log.csv',
+        #     time_log,
+        #     angle_error_log,
+        #     move_deg_log,
+        #     dist_error_log,
+        #     move_dist_log,
+        #     left_speed_log,
+        #     right_speed_log
+        # )
+        # print("Logs saved to vector_pid_log.csv")
 
 
 if __name__ == '__main__':
