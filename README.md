@@ -1,75 +1,138 @@
-# Vector Target Follower 
-Enable your Anki Vector to autonomously follow another Vector robot detected in its field of view using real-time object detection and PID control. This project combines YOLO-based detection, camera geometry, and motion control to achieve smooth tracking behavior.
+# Vector Target Follower
 
-## Output
+Enable your Anki Vector robot to autonomously follow another Vector in its field of view using real-time object detection and PID control. This project integrates YOLO-based vision, camera geometry, and control systems to create smooth, reactive tracking behavior.
+
+---
+![Following - Made with Clipchamp](https://github.com/user-attachments/assets/c50e69d4-0c0a-4ea4-8682-29ea61af18b4)
+![Follow - Made with Clipchamp](https://github.com/user-attachments/assets/e95f828d-936f-47dc-9d96-41288d748870)
+![Untitled video - Made with Clipchamp](https://github.com/user-attachments/assets/141f2aa0-8b17-4557-8b4e-d803dbcacd7f)
+![Stationary](https://github.com/user-attachments/assets/8039db18-4671-4311-8824-1ea446194c7e)
 
 
-## Target Distance 
-Using the Pinhole Camera Model:
 
-$$
-\frac{h}{f} = \frac{H}{Z} \quad \Rightarrow \quad Z = \frac{f \cdot H}{h}
-$$
 
- 
-- Z: Distance to the object (mm)
+## Project Output
 
-- H: Real-world height of Vector (66.6 mm)
+The follower Vector:
+- Detects the target Vector in its camera feed using YOLO
+- Estimates the **distance** and **angle** to the target in real-time
+- Uses **PID control** to smoothly adjust its movement and orientation
+- Follows the target robot while maintaining a configurable following distance
 
-- h: Height of bounding box (pixels)
+---
 
-- f: Focal length (pixels), calculated from known camera FOV
+## Target Distance Estimation
+
+### 1. Focal Length Calculation
+
+I calculate the focal length using the vertical field of view (FOV) and image height (in pixels), not width. This is intentional:
+
+- The Anki Vector robot is longer than it is wide.
+- Bounding box height changes more consistently with distance than width does — especially when the target rotates.
+- Therefore, **height** provides a more stable feature for estimating distance.
+
+**Why focal length matters:**  
+It’s the critical parameter for estimating real-world distances from image measurements using the pinhole camera model. It represents the distance from the lens to the image plane.
+
+### 2. Distance via Pinhole Camera Model
+
+The formula used:
+
+```
+distance_mm = (focal_length_px * real_object_height_mm) / bounding_box_height_px
+```
+This is derived from the **pinhole camera model**, which describes how a 3D point `(X, Y, Z)` projects onto a 2D image plane.
+
+### Why This Model?
+
+- Mathematically simple
+- Requires low computational overhead
+- Delivers reasonably accurate results in real-time (±2 cm error)
+- Avoids the latency of heavier ML-based methods like regression models
+
+---
 
 ## Target Angle Calculation
 
-$$
-\text{angle\_to\_target} = (c_x - \text{CAMERA\_CENTER\_X}) \cdot \left( \frac{\text{FOV\_HORIZONTAL}}{\text{CAMERA\_WIDTH}} \right)
-$$
+To estimate the **angle** between the camera's center line and the detected target:
 
+1. Compute the center x-coordinate of the bounding box.
+2. Calculate `delta_x` — the pixel offset from the image center.
+3. Multiply `delta_x` by degrees per pixel:
 
-- cx: Bounding box center x-coordinate
+```
+deg_per_pixel = FOV_HORIZONTAL / CAMERA_WIDTH
+angle_to_target = delta_x * deg_per_pixel
+```
 
-- FOV_HORIZONTAL: Horizontal field of view of Vector’s camera
+## Why This Angle Estimation Works So Well
 
-- Converts pixel offset into angular error in degrees
+- A direct, linear mapping from pixels to angle  
+- Each pixel represents a fixed angular step  
+- Fast and robust — especially for fixed-lens cameras like Vector’s  
+
+This makes it an ideal solution for real-time tracking where performance and simplicity matter.
+
+---
 
 ## PID Controllers
-Two separate PID controllers are used:
 
-### 1. Distance PID
-Controls forward/backward motion
+Two separate **PID controllers** manage the robot’s tracking behavior:
 
-Units: mm → motor speed
+- **Distance PID**: Controls forward/backward motion to maintain a ~90 mm distance from the target  
+- **Angular PID**: Controls rotation to keep the robot oriented toward the target
 
-### 2. Angle PID
-Controls left/right turning
+### What I Learned About PID Control
 
-Units: degrees → motor speed
+Even simple-looking control systems require proper tuning:
 
-PID Formula (per controller):
+- `P` (Proportional): Responds to current error  
+- `I` (Integral): Accumulates past error  
+- `D` (Derivative): Predicts future error based on rate of change  
 
-$$
-\text{Output} = K_P \cdot e(t) + K_I \cdot \int e(t) \, dt + K_D \cdot \frac{de(t)}{dt}
-$$
+Tuning these parameters helped reduce oscillations and ensured smoother, more stable movement toward the target.
 
-**Where:**
+---
 
-- e is the current error  
-- ∫e dt is the integral of the error  
-- de/dt is the derivative of the error
+## Output Scaling & Clamping
 
-## Output Scalling & Clamping 
-One of the main challenges was balancing output scales of the two controllers:
-- Distance output was in millimeters per second
-- Angle output was in degrees or radians per second
+### Challenge
 
-✅ Solution:
-- Normalize and scale outputs to a common range (−200,200) before applying to motor speeds.
-- Clamp outputs using:
+The two PID controllers operate on different units:
 
-```
-move_dist = max(min(move_dist, 150), -150)
-move_deg = max(min(move_deg, 5), -5)
-```
+- **Distance PID** → millimeters/second  
+- **Angular PID** → degrees or radians/second  
 
-- Combine them for differential drive. 
+This caused an **imbalance**, where distance control dominated the movement and angular corrections were underpowered, making the robot slow to turn toward the target.
+
+### My Solution
+
+- Manually scaled the angular PID output based on runtime behavior  
+- Added clamping to prevent excessive motor commands or jitter  
+- The system is still being fine-tuned, but the robot now moves and turns smoothly and consistently
+
+---
+
+## Summary
+
+This project deepened my understanding of:
+
+- Camera geometry and projection  
+- The pinhole camera model  
+- PID control theory and tuning  
+- Real-time performance optimization  
+- Differential drive kinematics  
+
+While not perfect, the Vector follower reliably tracks and follows a target robot with smooth, real-time behavior. Ongoing refinements will improve responsiveness and stability even further.
+
+---
+
+## Technologies Used
+
+- YOLO object detection (custom-trained)
+- Python & OpenCV
+- Real-time camera stream processing
+- PID control systems
+
+
+
