@@ -3,10 +3,8 @@
 Enable your Anki Vector robot to autonomously follow another Vector in its field of view using real-time object detection and PID control. This project integrates YOLO-based vision, camera geometry, and control systems to create smooth, reactive tracking behavior.
 
 ---
-![Following - Made with Clipchamp](https://github.com/user-attachments/assets/c50e69d4-0c0a-4ea4-8682-29ea61af18b4)
-![Follow - Made with Clipchamp](https://github.com/user-attachments/assets/e95f828d-936f-47dc-9d96-41288d748870)
-![Untitled video - Made with Clipchamp](https://github.com/user-attachments/assets/141f2aa0-8b17-4557-8b4e-d803dbcacd7f)
-![Stationary](https://github.com/user-attachments/assets/8039db18-4671-4311-8824-1ea446194c7e)
+
+[![Watch the video](https://img.youtube.com/vi/VU0lt7MGkOM/hqdefault.jpg)](https://www.youtube.com/watch?v=VU0lt7MGkOM)
 
 
 
