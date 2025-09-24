@@ -8,6 +8,7 @@ from anki_vector.util import degrees
 import matplotlib.pyplot as plt
 import math
 import csv
+import sys
 
 
 
@@ -28,9 +29,10 @@ focal_length_px = (CAMERA_HEIGHT / 2) / math.tan(math.radians(FOV_VERTICAL / 2))
 
 # Angular PID Values 
 
-K_P = 0.12
+K_P = 0.10  # or 0.09
+
 K_I = 0.002
-K_D = 0.025
+K_D = 0.035  # or 0.04
 BIAS = 0.0
 
 # Distance PID Values
@@ -50,6 +52,10 @@ TARGET_DIST = 90  ##mm
 model = YOLO("current.pt")
 
 
+def to_float(x):
+    # Convert tensor or other types to float safely
+    return x.item() if hasattr(x, 'item') else float(x)
+
 def move_deg_to_speed(move_deg, scale=7):
     # Scale move_deg (degrees) to wheel speed [-100, 100]
     return max(min(move_deg * scale, 100), -100)
@@ -61,19 +67,15 @@ def estimate_distance(box_height_px):
     distance_mm = (focal_length_px * REAL_VECTOR_HIEGHT) / box_height_px
     return distance_mm
 
-def save_logs_to_csv(filename, time_log, angle_error_log, move_deg_log, dist_error_log, move_dist_log, left_speed_log, right_speed_log):
+def save_logs_to_csv(filename, time_log, distance_log, angle_log, left_speed_log, right_speed_log):
     with open(filename, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        # Write header
-        writer.writerow(['time', 'angle_error', 'move_deg', 'dist_error', 'move_dist', 'left_speed', 'right_speed'])
-        # Write data rows
+        writer.writerow(['Time (s)', 'Distance (mm)', 'Angle (deg)', 'Left Speed (mm/s)', 'Right Speed (mm/s)'])
         for i in range(len(time_log)):
             writer.writerow([
                 time_log[i],
-                angle_error_log[i],
-                move_deg_log[i],
-                dist_error_log[i],
-                move_dist_log[i],
+                distance_log[i],
+                angle_log[i],
                 left_speed_log[i],
                 right_speed_log[i]
             ])
@@ -85,21 +87,18 @@ def main():
     integral = 0
     integral_dist = 0
 
-    last_time = time.time()
+    start_time = time.time()    # <--- Add this here
+    last_time = start_time
+
+    time_log = []
+    distance_log = []
+    angle_log = []
+    left_speed_log = []
+    right_speed_log = []
 
 
-    ## LOGGING
 
-    # time_log = []
-    # angle_error_log = []
-    # move_deg_log = []
-    # dist_error_log = []
-    # move_dist_log = []
-    # left_speed_log = []
-    # right_speed_log = []
-
-
-    with anki_vector.Robot("00806b78") as robot:
+    with anki_vector.Robot("00603f86") as robot:
 
         robot.behavior.set_head_angle(degrees(7.0))
         robot.behavior.set_lift_height(0.0)
@@ -140,6 +139,18 @@ def main():
 
                     ### DISTANCE ESTIMATION:
                     distance_mm = estimate_distance(h) - 25.4
+
+                    if distance_mm < 100:
+                        save_logs_to_csv(
+                            'vector_pid_log.csv',
+                            time_log,
+                            distance_log,
+                            angle_log,
+                            left_speed_log,
+                            right_speed_log
+                        )
+                        print("Logs saved to vector_pid_log.csv")
+                        sys.exit()  
                     
 
                     ## PID CONTROLLER DISTANCE MATH
@@ -192,13 +203,15 @@ def main():
 
                     robot.motors.set_wheel_motors(int(left_speed), int(right_speed))
 
-                    # time_log.append(now)
-                    # angle_error_log.append(error)
-                    # move_deg_log.append(move_deg)
-                    # dist_error_log.append(error_dist)
-                    # move_dist_log.append(move_dist)
-                    # left_speed_log.append(left_speed)
-                    # right_speed_log.append(right_speed)
+                    elapsed_time = now - start_time  # start_time you'll need to define before the loop
+
+                    time_log.append(elapsed_time)
+                    distance_log.append(to_float(distance_mm))
+                    angle_log.append(to_float(angle_to_target))
+                    left_speed_log.append(to_float(left_speed))
+                    right_speed_log.append(to_float(right_speed))
+
+
 
                     ## PLOTTING 
 

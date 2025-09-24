@@ -8,8 +8,7 @@ from anki_vector.util import degrees
 import matplotlib.pyplot as plt
 import math
 import csv
-
-
+import sys
 
 # ### CONSTANTS
 
@@ -50,12 +49,34 @@ def estimate_distance(box_height_px):
     return distance_mm
 
 
+def to_float(x):
+    # Convert tensor or other types to float safely
+    return x.item() if hasattr(x, 'item') else float(x)
 
+def save_logs_to_csv(filename, time_log, distance_log, angle_log, v_l_log, v_r_log):
+    with open(filename, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['Time (s)', 'Distance (mm)', 'Angle (deg)', 'Left Speed (mm/s)', 'Right Speed (mm/s)'])
+        for i in range(len(time_log)):
+            writer.writerow([
+                time_log[i],
+                distance_log[i],
+                angle_log[i],
+                v_l_log[i],
+                v_r_log[i]
+            ])
 
 def main():
 
+    time_log = []
+    distance_log = []
+    angle_log = []
+    v_l_log = []
+    v_r_log = []
 
-    with anki_vector.Robot("00806b78") as robot:
+    start_time = time.time()
+
+    with anki_vector.Robot("00603f86") as robot:
 
         robot.behavior.set_head_angle(degrees(7.0))
         robot.behavior.set_lift_height(0.0)
@@ -90,14 +111,19 @@ def main():
                     angle_to_target = delta_x * deg_per_pixel_h
 
                     ### DISTANCE ESTIMATION:
-                    distance_mm = estimate_distance(h) - 25.4              
+                    distance_mm = estimate_distance(h) - 25.4   
+
+                    if distance_mm < 100:
+                        save_logs_to_csv("kinematic_log.csv", time_log, distance_log, angle_log, v_l_log, v_r_log)
+                        print("✅ Data saved to kinematic_log.csv") 
+                        sys.exit()          
 
 
                     print(f'REAL ANGLE -> {angle_to_target}')
                     print(f'MOVE DIST -> {distance_mm}')
 
 
-                    p = distance_mm
+                    p = distance_mm - TARGET_DIST
                     alpha = math.radians(angle_to_target)
 
                     if abs(alpha) > math.pi / 2:
@@ -118,6 +144,13 @@ def main():
                     v_l = omega * (R + (L / 2))
 
                     robot.motors.set_wheel_motors(int(v_l), int(v_r))
+
+                    elapsed = time.time() - start_time
+                    time_log.append(elapsed)
+                    distance_log.append(to_float(distance_mm))
+                    angle_log.append(to_float(angle_to_target))
+                    v_l_log.append(to_float(v_l))
+                    v_r_log.append(to_float(v_r))
 
                     print(f"x={cx:.1f}, y={cy:.1f}, theta={angle_to_target:.1f}°")
                     print(f"p={p:.1f}, alpha={math.degrees(alpha):.1f}°,")
@@ -145,9 +178,10 @@ def main():
                 break
 
             time.sleep(0.1) # ~ 10 Hz loop rate
-            
+        
         robot.motors.set_wheel_motors(0, 0) 
         cv2.destroyAllWindows()
+
 
 
 
